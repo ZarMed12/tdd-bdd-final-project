@@ -98,31 +98,130 @@ def create_products():
 # L I S T   A L L   P R O D U C T S
 ######################################################################
 
-#
-# PLACE YOUR CODE TO LIST ALL PRODUCTS HERE
-#
+@app.route("/products", methods=["GET"])
+def list_products():
+    """
+    List products in database.
+    Filters can be used (e. g. name, availability, ...).
+    According to the task, it should not be implicitly possible to use several filters at once.
+    And no filter with multiple values (e. g. name = Christian or Janice)
+    I have to use the various available methods of the Product class.
+    """
+    app.logger.info("Request to List Products...")
+    product_list = []
+    filter_name = request.args.get("name")
+    filter_category = request.args.get("category")
+    filter_available = request.args.get("available")
+
+    if filter_name:
+        app.logger.info("Fetch products with name %s from database.", filter_name)
+        product_list = Product.find_by_name(filter_name).all()
+    elif filter_category:
+        app.logger.info("Fetch products with category %s from database.", filter_category)
+        # Category is an Enum. Hence, it's necessary to use getattr()
+        filter_category_value = getattr(Category, filter_category.upper())
+        product_list = Product.find_by_category(filter_category_value).all()
+    elif filter_available:
+        app.logger.info("Fetch products with availability %s from database.", filter_available)
+        product_list = Product.find_by_availability(filter_available).all()
+    else:
+        app.logger.info("Fetch all products from database")
+        product_list = Product.all()
+
+    # Create response object
+    if len(product_list) == 0:
+        app.logger.info("**No** products found.")
+        response_status = status.HTTP_204_NO_CONTENT
+        message = product_list
+    else:
+        app.logger.info("Products found.")
+        response_status = status.HTTP_200_OK
+        message = [product.serialize() for product in product_list]
+
+    return jsonify(message), response_status
+
 
 ######################################################################
 # R E A D   A   P R O D U C T
 ######################################################################
 
-#
-# PLACE YOUR CODE HERE TO READ A PRODUCT
-#
+@app.route("/products/<int:product_id>", methods=["GET"])
+def read_product(product_id: int):
+    """
+    Read a product depending on the supplied product ID.
+    """
+    app.logger.info("Request to Read a Product...")
+    product = Product.find(product_id)
+
+    if product is None:
+        app.logger.info("**No** product with ID %s found.", product_id)
+        response_status = status.HTTP_404_NOT_FOUND
+        message = f"Status Code: {status.HTTP_404_NOT_FOUND}"
+    else:
+        app.logger.info("Product with ID %s found.", product_id)
+        response_status = status.HTTP_200_OK
+        message = product.serialize()
+
+    return jsonify(message), response_status
+
+
 
 ######################################################################
 # U P D A T E   A   P R O D U C T
 ######################################################################
 
-#
-# PLACE YOUR CODE TO UPDATE A PRODUCT HERE
-#
+@app.route("/products/<int:product_id>", methods=["PUT"])
+def update_product(product_id: int):
+    """
+    Update a product depending on the supplied product ID.
+    """
+    app.logger.info("Request to Update a Product with id %s...", product_id)
+    check_content_type("application/json")
+
+    # Only update product if it exists on database!
+    product = Product.find(product_id)
+
+    if product is None:
+        app.logger.info("**No** product with ID %s found.", product_id)
+        response_status = status.HTTP_404_NOT_FOUND
+        message = f"Status Code: {status.HTTP_404_NOT_FOUND}"
+    else:
+        app.logger.info("Product with ID %s found.", product_id)
+        response_status = status.HTTP_200_OK
+        product.deserialize(request.get_json())
+        product.id = product_id
+        product.update()
+        app.logger.info("Product with id [%s] updated!", product.id)
+        message = product.serialize()
+
+    return jsonify(message), response_status
 
 ######################################################################
 # D E L E T E   A   P R O D U C T
 ######################################################################
 
+@app.route("/products/<int:product_id>", methods=["DELETE"])
+def delete_product(product_id: int):
+    """
+    Delete a product depending on the supplied product ID.
+    """
+    app.logger.info("Request to Delete a Product with id %s...", product_id)
+    check_content_type("application/json")
 
-#
-# PLACE YOUR CODE TO DELETE A PRODUCT HERE
-#
+    # Only delete product if it exists on database!
+    product = Product.find(product_id)
+
+    if product is None:
+        app.logger.info("**No** product with ID %s found.", product_id)
+        response_status = status.HTTP_404_NOT_FOUND
+        message = f"Status Code: {status.HTTP_404_NOT_FOUND}"
+    else:
+        app.logger.info("Product with ID %s found.", product_id)
+        response_status = status.HTTP_204_NO_CONTENT
+        product.deserialize(request.get_json())
+        product.id = product_id
+        product.delete()
+        app.logger.info("Product with id [%s] deleted!", product.id)
+        message = ""
+
+    return jsonify(message), response_status
